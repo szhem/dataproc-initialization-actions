@@ -55,9 +55,8 @@ function install_oozie(){
   apt-get install oozie oozie-client -y || err 'Unable to install oozie-client'
 
   # The ext library is needed to enable the Oozie web console
-  wget http://archive.cloudera.com/gplextras/misc/ext-2.2.zip || err 'Unable to download ext-2.2.zip'
-  unzip ext-2.2.zip
-  ln -s ext-2.2 /var/lib/oozie/ext-2.2 || err 'Unable to create symbolic link'
+  wget http://archive.cloudera.com/gplextras/misc/ext-2.2.zip -P /var/lib/oozie/ || err 'Unable to download ext-2.2.zip'
+  unzip /var/lib/oozie/ext-2.2.zip -d /var/lib/oozie/
 
   # Create the Oozie database
   sudo -u oozie /usr/lib/oozie/bin/ooziedb.sh create -run
@@ -74,12 +73,11 @@ function install_oozie(){
     --clobber
 
   # Install share lib
-  tar -xvzf /usr/lib/oozie/oozie-sharelib.tar.gz
-  ln -s share /usr/lib/oozie/share
+  tar -xvzf /usr/lib/oozie/oozie-sharelib.tar.gz -C /usr/lib/oozie/
   hadoop fs -mkdir -p /user/oozie/
-  hadoop fs -put -f share/ /user/oozie/
+  hadoop fs -put -f /usr/lib/oozie/share/ /user/oozie/
   # Detect if current node configuration is HA and then set oozie servers
-  local additional_nodes=$(/usr/share/google/get_metadata_value attributes/dataproc-master-additional | sed 's/,/\n/g' | wc -l)
+  local additional_nodes=$(/usr/share/google/get_metadata_value attributes/dataproc-master-additional | sed 's/,/\n/g' | wc -w)
   if [[ ${additional_nodes} -ge 2 ]]; then
     echo 'Starting configuration for HA'
     # List of servers is used for proper zookeeper configuration. It is needed to replace original ports range with specific one
@@ -110,8 +108,7 @@ function install_oozie(){
 
   fi
   # Clean up temporary fles
-  rm -rf ext-2.2 ext-2.2.zip share oozie-sharelib.tar.gz
-  /usr/lib/zookeeper/bin/zkServer.sh restart
+  rm -rf /var/lib/oozie/ext-2.2.zip
   # HDFS and YARN must be cycled; restart to clean things up
   for service in hadoop-hdfs-namenode hadoop-hdfs-secondarynamenode hadoop-yarn-resourcemanager oozie; do
     if [[ $(systemctl list-unit-files | grep ${service}) != '' ]] && \

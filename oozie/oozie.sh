@@ -90,7 +90,8 @@ function install_oozie(){
       | head -n 3 \
       | sed 's/$/:2181,/g' \
       | xargs -L3 \
-      | sed 's/.$//g')
+      | sed 's/.$//g' \
+      | tr -d ' ')
 
     bdconfig set_property \
       --configuration_file "/etc/oozie/conf/oozie-site.xml" \

@@ -20,6 +20,9 @@ set -euxo pipefail
 
 readonly KAFKA_PROP_FILE='/etc/kafka/conf/server.properties'
 
+# Whether to enable kafka installation on master nodes.
+readonly enable_on_master="$(/usr/share/google/get_metadata_value attributes/dataproc-kafka-enable-on-master || echo 'false')"
+
 function update_apt_get() {
   for ((i = 0; i < 10; i++)); do
     if apt-get update; then
@@ -69,10 +72,12 @@ function install_and_configure_kafka_server() {
   mkdir -p /var/lib/kafka-logs
   chown kafka:kafka -R /var/lib/kafka-logs
 
-  # Note: If modified to also run brokers on master nodes, this logic for
-  # generating broker_id will need to be changed.
+  local node_marker="w"
+  if [[ "${enable_on_master}" == "true" ]]; then
+    node_marker="m"
+  fi
   local broker_id
-  broker_id=$(hostname | sed 's/.*-w-\([0-9]\)*.*/\1/g')
+  broker_id=$(hostname | sed 's/.*-'${node_marker}'-\([0-9]\)*.*/\1/g')
   sed -i 's|log.dirs=/tmp/kafka-logs|log.dirs=/var/lib/kafka-logs|' \
     "${KAFKA_PROP_FILE}"
   sed -i 's|^\(zookeeper\.connect=\).*|\1'${zookeeper_list}'|' \
@@ -92,16 +97,22 @@ function main() {
 
   # Only run the installation on workers; verify zookeeper on master(s).
   if [[ "${role}" == 'Master' ]]; then
-    service zookeeper-server status \
-      || err 'Required zookeeper-server not running on master!'
-    # On master nodes, just install kafka libs but not kafka-server.
-    apt-get install -y kafka \
-      || err 'Unable to install kafka libraries on master!'
+    if [[ "${enable_on_master}" == "true" ]]; then
+      # Run installation on master
+      install_and_configure_kafka_server
+    else
+      service zookeeper-server status \
+        || err 'Required zookeeper-server not running on master!'
+      # On master nodes, just install kafka libs but not kafka-server.
+      apt-get install -y kafka \
+        || err 'Unable to install kafka libraries on master!'
+    fi
   else
-    # Run installation on workers.
-    install_and_configure_kafka_server
+    if [[ "${enable_on_master}" != "true" ]]; then
+      # Run installation on workers.
+      install_and_configure_kafka_server
+    fi
   fi
-
 }
 
 main

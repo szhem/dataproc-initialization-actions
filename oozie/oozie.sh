@@ -54,6 +54,14 @@ function install_oozie(){
   update_apt_get || err 'Failed to update apt-get'
   apt-get install oozie oozie-client -y || err 'Unable to install oozie-client'
 
+  # Download newer version of guava that still has Stopwatch.elapsedMillis() method to prevent
+  # java.lang.NoSuchMethodError: com.google.common.base.Stopwatch.elapsedMillis()J
+  # and has Sets.newConcurrentHashSet() method to prevent
+  # java.lang.NoSuchMethodError: com.google.common.collect.Sets.newConcurrentHashSet()Ljava/util/Set;
+  # and place the new lib to be first in the classpath, which is defined by common.loader property
+  # in /var/lib/oozie/tomcat-deployment/conf/catalina.properties file 
+  wget http://repo1.maven.org/maven2/com/google/guava/guava/15.0/guava-15.0.jar -P /var/lib/oozie/
+
   # The ext library is needed to enable the Oozie web console
   wget http://archive.cloudera.com/gplextras/misc/ext-2.2.zip -P /var/lib/oozie/ || err 'Unable to download ext-2.2.zip'
   unzip /var/lib/oozie/ext-2.2.zip -d /var/lib/oozie/
